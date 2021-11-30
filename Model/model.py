@@ -1,3 +1,4 @@
+from os import XATTR_SIZE_MAX
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -72,6 +73,7 @@ class U_Network(nn.Module):
             y = self.dec[i](y)
             y = self.upsample(y)
             y = torch.cat([y, x_enc[-(i + 2)]], dim = 1)
+
         # Two convs at full_size/2 res
         y = self.dec[3](y)
         y = self.dec[4](y)
@@ -119,9 +121,25 @@ class SpatialTransformer(nn.Module):
 
         return F.grid_sample(src, new_locs, mode=self.mode)
 
-class Extractor(nn.Module):
+class MLP(nn.Module):
+    def __init__(self, input_size, feat_dim):
+        super(MLP, self).__init__()
+        self.fc1 = nn.Sequential(
+                        nn.Linear(input_size, input_size//2),
+                        nn.ReLU(inplace=True))
+        self.fc2 = nn.Sequential(
+                        nn.Linear(input_size//2, input_size //2),
+                        nn.ReLU(inplace=True))
+        self.fc3 = nn.Linear(input_size//2, feat_dim)
+
+    def forward(self, x):
+        x = x.view(x.shape[0], -1)
+        out = self.fc3(self.fc2(self.fc1(x)))
+        return out
+        
+class AlexNet(nn.Module):
     def __init__(self, in_channel=1, feat_dim = 128):
-        super(Extractor, self).__init__()
+        super(AlexNet, self).__init__()
         self.conv_block_1 = nn.Sequential(
             nn.Conv2d(in_channel, 96//2, 11, 4, 2, bias = False),
             nn.BatchNorm2d(96//2),
